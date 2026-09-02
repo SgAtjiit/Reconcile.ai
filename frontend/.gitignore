@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+
+# Production build outputs
+dist/
+dist-ssr/
+*.local
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Implementation Plans folder
+plans/
+
+# Editor & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+npm-debug.log*
