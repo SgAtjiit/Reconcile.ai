@@ -30,6 +30,10 @@ app.get("/health", (req, res) => {
 
 // Global Error Handler Middleware using ApiError standard
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
   const statusCode = err.statusCode || 500;
   const message = err.message || "Internal Server Error";
   const errors = err.errors || [];

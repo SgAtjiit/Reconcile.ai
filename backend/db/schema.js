@@ -50,9 +50,9 @@ export const sourcesBank = pgTable("sources_bank", {
 export const matchResults = pgTable("match_results", {
   id: uuid("id").primaryKey().defaultRandom(),
   batchId: uuid("batch_id").references(() => matchBatches.id, { onDelete: "cascade" }).notNull(),
-  settlementId: uuid("settlement_id").references(() => sourcesSettlement.id, { onDelete: "set null" }),
-  ledgerId: uuid("ledger_id").references(() => sourcesLedger.id, { onDelete: "set null" }),
-  bankId: uuid("bank_id").references(() => sourcesBank.id, { onDelete: "set null" }),
+  settlementId: uuid("settlement_id"),
+  ledgerId: uuid("ledger_id"),
+  bankId: uuid("bank_id"),
   matchType: text("match_type", { 
     enum: ["exact", "fee_adjusted", "timing_lag", "fuzzy_llm", "unresolved"] 
   }).notNull(),

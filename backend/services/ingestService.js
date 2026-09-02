@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import Papa from "papaparse";
 import { db } from "../db/client.js";
 import { sourcesSettlement, sourcesLedger, sourcesBank, matchBatches } from "../db/schema.js";
@@ -35,7 +36,7 @@ export async function processAndIngestBatch(batchId, files) {
       return null;
     }
     return {
-      id: `st_${batchId}_${idx + 1}`,
+      id: randomUUID(),
       batchId,
       paymentId: String(res.data.payment_id),
       utr: String(res.data.utr),
@@ -56,7 +57,7 @@ export async function processAndIngestBatch(batchId, files) {
       return null;
     }
     return {
-      id: `lg_${batchId}_${idx + 1}`,
+      id: randomUUID(),
       batchId,
       orderId: String(res.data.order_id),
       paymentId: String(res.data.payment_id),
@@ -75,7 +76,7 @@ export async function processAndIngestBatch(batchId, files) {
       return null;
     }
     return {
-      id: `bk_${batchId}_${idx + 1}`,
+      id: randomUUID(),
       batchId,
       utr: String(res.data.utr),
       amount: String(res.data.amount),
@@ -93,27 +94,50 @@ export async function processAndIngestBatch(batchId, files) {
   const totalCount = validSettlements.length + validLedgers.length + validBanks.length;
 
   // Save to in-memory store for instant fallback access
+  const existing = inMemoryBatchStore.get(batchId) || {};
   inMemoryBatchStore.set(batchId, {
+    ...existing,
     settlements: validSettlements,
     ledgers: validLedgers,
     banks: validBanks,
+    matchResults: existing.matchResults || [],
     totalRecords: totalCount,
+    status: "uploaded",
   });
 
   // Try bulk insert into DB if available
-  try {
-    await db.transaction(async (tx) => {
-      if (validSettlements.length > 0) await tx.insert(sourcesSettlement).values(validSettlements);
-      if (validLedgers.length > 0) await tx.insert(sourcesLedger).values(validLedgers);
-      if (validBanks.length > 0) await tx.insert(sourcesBank).values(validBanks);
+  const IS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (IS_UUID.test(batchId)) {
+    try {
+      const [existingBatch] = await db.select().from(matchBatches).where(eq(matchBatches.id, batchId));
+      if (!existingBatch) {
+        await db.insert(matchBatches).values({
+          id: batchId,
+          name: `Batch-${batchId.slice(0, 8)}`,
+          status: "uploaded",
+          totalRecords: totalCount,
+        });
+      }
 
-      await tx.update(matchBatches).set({ totalRecords: totalCount, status: "uploaded" }).where(eq(matchBatches.id, batchId));
-    });
-  } catch (dbErr) {
-    // In-memory fallback active
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < validSettlements.length; i += CHUNK_SIZE) {
+        await db.insert(sourcesSettlement).values(validSettlements.slice(i, i + CHUNK_SIZE));
+      }
+      for (let i = 0; i < validLedgers.length; i += CHUNK_SIZE) {
+        await db.insert(sourcesLedger).values(validLedgers.slice(i, i + CHUNK_SIZE));
+      }
+      for (let i = 0; i < validBanks.length; i += CHUNK_SIZE) {
+        await db.insert(sourcesBank).values(validBanks.slice(i, i + CHUNK_SIZE));
+      }
+
+      await db.update(matchBatches).set({ totalRecords: totalCount, status: "uploaded" }).where(eq(matchBatches.id, batchId));
+    } catch (dbErr) {
+      console.warn(`[Ingest DB Warning] Primary DB ingestion deferred (${dbErr.message}). In-memory store active.`);
+    }
   }
 
   return {
+    batchId,
     totalSettlement: validSettlements.length,
     totalLedger: validLedgers.length,
     totalBank: validBanks.length,

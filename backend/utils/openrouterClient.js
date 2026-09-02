@@ -22,6 +22,6 @@ export function getLlmConfig() {
     model: process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet",
     confidenceThreshold: parseFloat(process.env.LLM_CONFIDENCE_THRESHOLD || "0.60"),
     batchSize: parseInt(process.env.LLM_BATCH_SIZE || "15", 10),
-    timeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || "12000", 10),
+    timeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || "30000", 10),
   };
 }

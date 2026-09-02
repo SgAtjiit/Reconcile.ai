@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { UploadZone } from "../components/UploadZone.jsx";
 import { ToleranceSettings } from "../components/ToleranceSettings.jsx";
 import { createBatchApi, uploadBatchFilesApi, triggerMatchApi } from "../api/batches.js";
+import { SAMPLE_SETTLEMENT_CSV, SAMPLE_LEDGER_CSV, SAMPLE_BANK_CSV } from "../data/sampleFixtures.js";
 import { Play, Sparkles, AlertCircle, FileCheck, Layers } from "lucide-react";
 
 export function UploadPage() {
@@ -23,21 +24,21 @@ export function UploadPage() {
   const [progressStage, setProgressStage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // 1-Click Sample Data Demo Loader
+  // 1-Click Sample Data Demo Loader (427 Records Across 3 Streams)
   const handleLoadSampleData = () => {
     setErrorMessage(null);
     const mockSettlement = new File(
-      ["payment_id,utr,amount,fee,tds,settled_amount,settlement_date\nPAY_100,UTR_100,500.00,0.00,0.00,500.00,2026-08-01T10:00:00Z\nPAY_101,UTR_101,2000.00,40.00,20.00,1940.00,2026-08-01T10:00:00Z\nPAY_102,UTR_102,850.00,0.00,0.00,850.00,2026-08-01T10:00:00Z"],
+      [SAMPLE_SETTLEMENT_CSV],
       "settlement.csv",
       { type: "text/csv" }
     );
     const mockLedger = new File(
-      ["order_id,payment_id,amount,order_date,customer_ref\nORD_100,PAY_100,500.00,2026-08-01T10:00:00Z,CUST_100\nORD_101,PAY_101,2000.00,2026-08-01T10:00:00Z,CUST_101\nORD_102,PAY_102,850.00,2026-08-01T10:00:00Z,CUST_102"],
+      [SAMPLE_LEDGER_CSV],
       "ledger.csv",
       { type: "text/csv" }
     );
     const mockBank = new File(
-      ["utr,amount,txn_date,narration\nUTR_100,500.00,2026-08-01T10:00:00Z,NEFT/INB/UTR_100\nUTR_101,1940.00,2026-08-01T10:00:00Z,CMS/GATEWAY/UTR_101\nUTR_102,850.00,2026-08-03T10:00:00Z,NEFT/DELAYED/UTR_102"],
+      [SAMPLE_BANK_CSV],
       "bank.csv",
       { type: "text/csv" }
     );

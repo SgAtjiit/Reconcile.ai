@@ -1,19 +1,23 @@
+import { randomUUID } from "crypto";
 import { db } from "../../db/client.js";
 import { sourcesSettlement, sourcesLedger, sourcesBank, matchResults } from "../../db/schema.js";
 import { inMemoryBatchStore } from "../ingestService.js";
 import { eq } from "drizzle-orm";
+import { isUuid } from "../../utils/isUuid.js";
 
 export async function runExactMatchPass(batchId, settlements, ledgers, banks) {
   // If arrays are not passed, fetch from DB or in-memory batch store
   if (!settlements || !ledgers || !banks) {
-    try {
-      settlements = await db.select().from(sourcesSettlement).where(eq(sourcesSettlement.batchId, batchId));
-      ledgers = await db.select().from(sourcesLedger).where(eq(sourcesLedger.batchId, batchId));
-      banks = await db.select().from(sourcesBank).where(eq(sourcesBank.batchId, batchId));
-    } catch (err) {
-      settlements = [];
-      ledgers = [];
-      banks = [];
+    if (isUuid(batchId)) {
+      try {
+        settlements = await db.select().from(sourcesSettlement).where(eq(sourcesSettlement.batchId, batchId));
+        ledgers = await db.select().from(sourcesLedger).where(eq(sourcesLedger.batchId, batchId));
+        banks = await db.select().from(sourcesBank).where(eq(sourcesBank.batchId, batchId));
+      } catch (err) {
+        settlements = [];
+        ledgers = [];
+        banks = [];
+      }
     }
 
     // Fallback to in-memory store if DB query returned 0 rows
@@ -48,6 +52,7 @@ export async function runExactMatchPass(batchId, settlements, ledgers, banks) {
         matchedBankIds.add(bank.id);
 
         matchedResults.push({
+          id: randomUUID(),
           batchId,
           settlementId: st.id,
           ledgerId: ledger.id,
@@ -62,9 +67,20 @@ export async function runExactMatchPass(batchId, settlements, ledgers, banks) {
   }
 
   if (matchedResults.length > 0) {
-    try {
-      await db.insert(matchResults).values(matchedResults);
-    } catch (err) {}
+    if (inMemoryBatchStore.has(batchId)) {
+      const stored = inMemoryBatchStore.get(batchId);
+      stored.matchResults = [...(stored.matchResults || []), ...matchedResults];
+    }
+    if (isUuid(batchId)) {
+      try {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < matchedResults.length; i += CHUNK_SIZE) {
+          await db.insert(matchResults).values(matchedResults.slice(i, i + CHUNK_SIZE));
+        }
+      } catch (err) {
+        console.warn(`[Pass 1 DB Warning] DB insert deferred (${err.message}). Results stored in memory.`);
+      }
+    }
   }
 
   return {

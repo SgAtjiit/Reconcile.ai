@@ -4,10 +4,18 @@ import { runLlmMatchPass } from "./llmMatch.js";
 import { runUnresolvedPass } from "./unresolved.js";
 import { db } from "../../db/client.js";
 import { matchBatches } from "../../db/schema.js";
+import { inMemoryBatchStore } from "../ingestService.js";
 import { eq } from "drizzle-orm";
 
 export async function runFullMatcherPipeline(batchId, options = {}) {
-  // Update batch status to matching
+  // Clear any previous match results and set status to matching in memory
+  if (inMemoryBatchStore.has(batchId)) {
+    const stored = inMemoryBatchStore.get(batchId);
+    stored.matchResults = [];
+    stored.status = "matching";
+  }
+
+  // Update batch status to matching in DB
   try {
     await db.update(matchBatches).set({ status: "matching" }).where(eq(matchBatches.id, batchId));
   } catch (err) {}
@@ -41,7 +49,12 @@ export async function runFullMatcherPipeline(batchId, options = {}) {
     pass3.remainingBanks
   );
 
-  // Update batch status to completed
+  // Update batch status to completed in memory & DB
+  if (inMemoryBatchStore.has(batchId)) {
+    const stored = inMemoryBatchStore.get(batchId);
+    stored.status = "completed";
+  }
+
   try {
     await db.update(matchBatches).set({ status: "completed" }).where(eq(matchBatches.id, batchId));
   } catch (err) {}

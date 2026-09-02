@@ -20,7 +20,7 @@ export function MatchTypeChart({ summaryData }) {
   const chartData = Object.entries(summaryData || {}).map(([key, val]) => ({
     key,
     name: LABEL_MAP[key] || key,
-    count: val?.count || 0,
+    count: val?.recordCount || val?.count || val?.matchEntries || 0,
     confidence: val?.avgConfidence || "0.00",
   }));
 

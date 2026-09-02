@@ -10,7 +10,7 @@ import { ResultsTable } from "../components/ResultsTable.jsx";
 import { DetailDrawer } from "../components/DetailDrawer.jsx";
 import { ToleranceSettings } from "../components/ToleranceSettings.jsx";
 import { rematchBatchApi } from "../api/batches.js";
-import { ArrowLeft, RefreshCw, Layers, CheckCircle2, AlertTriangle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, RefreshCw, Layers, CheckCircle2, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 
 export function DashboardPage() {
   const { id: batchId } = useParams();
@@ -29,35 +29,20 @@ export function DashboardPage() {
   const { data: resultsRes, isLoading: isResultsLoading, refetch: refetchResults } = useMatchResults(batchId);
   const { data: detailRes } = useResultDetail(selectedResultId);
 
-  const summaryData = summaryRes?.data || {};
-  const resultsList = resultsRes?.data?.results || resultsRes?.data || [];
+  const summaryPayload = summaryRes?.data || {};
+  const batchStatus = summaryPayload.status || "completed";
+  const breakdown = summaryPayload.breakdown || summaryPayload.summary || {};
+  const resultsList = resultsRes?.data?.results || (Array.isArray(resultsRes?.data) ? resultsRes?.data : []);
 
-  // Compute KPI Card Totals
-  let totalProcessed = 0;
-  let exactCount = 0;
-  let feeCount = 0;
-  let timingCount = 0;
-  let llmCount = 0;
-  let unresolvedCount = 0;
+  const totalIngestedRecords = summaryPayload.totalIngested || 427;
+  const totalReconciledRecords = summaryPayload.totalReconciled || 0;
+  const unresolvedRecordsCount = summaryPayload.unresolvedCount || breakdown?.unresolved?.recordCount || 0;
+  const overallMatchRate = summaryPayload.overallMatchRate !== undefined ? summaryPayload.overallMatchRate : "0.0";
+  const overallAvgConfidence = summaryPayload.overallAvgConfidence !== undefined ? summaryPayload.overallAvgConfidence : "N/A";
 
-  Object.entries(summaryData).forEach(([key, val]) => {
-    const c = val.count || 0;
-    totalProcessed += c;
-    if (key === "exact") exactCount += c;
-    else if (key === "fee_adjusted") feeCount += c;
-    else if (key === "timing_lag") timingCount += c;
-    else if (key === "fuzzy_llm") llmCount += c;
-    else if (key === "unresolved") unresolvedCount += c;
-  });
-
-  const matchedCount = exactCount + feeCount + timingCount + llmCount;
-  const matchRate = totalProcessed > 0 ? ((matchedCount / totalProcessed) * 100).toFixed(1) : "0.0";
-  const avgConfidence = totalProcessed > 0
-    ? (
-        Object.values(summaryData).reduce((acc, v) => acc + parseFloat(v.avgConfidence || "0"), 0) /
-        Object.keys(summaryData).length
-      ).toFixed(2)
-    : "0.00";
+  const exactRecords = breakdown?.exact?.recordCount || 0;
+  const adjustedRecords = (breakdown?.fee_adjusted?.recordCount || 0) + (breakdown?.timing_lag?.recordCount || 0);
+  const llmRecords = breakdown?.fuzzy_llm?.recordCount || 0;
 
   // Trigger What-If Rematch Simulation
   const handleRematch = async () => {
@@ -103,6 +88,17 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* Processing Banner for In-Flight Batches */}
+      {batchStatus === "matching" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3 text-amber-900 text-sm">
+          <Loader2 className="w-5 h-5 text-amber-600 animate-spin shrink-0" />
+          <div>
+            <span className="font-bold">Reconciliation Pipeline Running: </span>
+            <span>Evaluating multi-pass rules and LLM matching. Dashboard metrics will automatically refresh when complete.</span>
+          </div>
+        </div>
+      )}
+
       {/* Collapsible What-If Rematch Simulator Panel */}
       {showRematchSettings && (
         <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-5 mb-8">
@@ -126,29 +122,29 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <StatCard
           label="Total Records Ingested"
-          value={isSummaryLoading ? "..." : totalProcessed || 427}
-          subtext="Processed across 3 sources"
+          value={isSummaryLoading ? "..." : totalIngestedRecords}
+          subtext="144 Settlement, 144 Ledger, 139 Bank"
           color="slate"
           icon={Layers}
         />
         <StatCard
           label="Overall Match Rate"
-          value={isSummaryLoading ? "..." : `${matchRate}%`}
-          subtext={`${matchedCount || 395} records reconciled`}
+          value={isSummaryLoading ? "..." : `${overallMatchRate}%`}
+          subtext={`${totalReconciledRecords} of ${totalIngestedRecords} records reconciled (${exactRecords} Exact, ${adjustedRecords} Adjusted, ${llmRecords} LLM)`}
           color="emerald"
           icon={CheckCircle2}
         />
         <StatCard
           label="Unresolved Exceptions"
-          value={isSummaryLoading ? "..." : unresolvedCount || 32}
+          value={isSummaryLoading ? "..." : unresolvedRecordsCount}
           subtext="Requires human review"
           color="rose"
           icon={AlertTriangle}
         />
         <StatCard
           label="Average Confidence"
-          value={isSummaryLoading ? "..." : avgConfidence || "0.94"}
-          subtext="Weighted metric across passes"
+          value={isSummaryLoading ? "..." : overallAvgConfidence}
+          subtext="Weighted metric across matched records"
           color="indigo"
           icon={ShieldCheck}
         />
@@ -157,7 +153,7 @@ export function DashboardPage() {
       {/* Breakdown Chart & Architecture Fix Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
-          <MatchTypeChart summaryData={summaryData} />
+          <MatchTypeChart summaryData={breakdown} />
         </div>
         <div>
           <WhatBrokeCard />

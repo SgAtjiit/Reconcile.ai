@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
 import { db } from "../../db/client.js";
 import { matchResults } from "../../db/schema.js";
+import { inMemoryBatchStore } from "../ingestService.js";
+import { isUuid } from "../../utils/isUuid.js";
 
 export async function runUnresolvedPass(
   batchId,
@@ -11,6 +14,7 @@ export async function runUnresolvedPass(
 
   for (const s of orphanedSettlements) {
     unresolvedRecords.push({
+      id: randomUUID(),
       batchId,
       settlementId: s.id,
       ledgerId: null,
@@ -24,6 +28,7 @@ export async function runUnresolvedPass(
 
   for (const l of orphanedLedgers) {
     unresolvedRecords.push({
+      id: randomUUID(),
       batchId,
       settlementId: null,
       ledgerId: l.id,
@@ -37,6 +42,7 @@ export async function runUnresolvedPass(
 
   for (const b of orphanedBanks) {
     unresolvedRecords.push({
+      id: randomUUID(),
       batchId,
       settlementId: null,
       ledgerId: null,
@@ -49,10 +55,19 @@ export async function runUnresolvedPass(
   }
 
   if (unresolvedRecords.length > 0) {
-    try {
-      await db.insert(matchResults).values(unresolvedRecords);
-    } catch (err) {
-      // In offline unit tests, return in-memory matches
+    if (inMemoryBatchStore.has(batchId)) {
+      const stored = inMemoryBatchStore.get(batchId);
+      stored.matchResults = [...(stored.matchResults || []), ...unresolvedRecords];
+    }
+    if (isUuid(batchId)) {
+      try {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < unresolvedRecords.length; i += CHUNK_SIZE) {
+          await db.insert(matchResults).values(unresolvedRecords.slice(i, i + CHUNK_SIZE));
+        }
+      } catch (err) {
+        console.warn(`[Pass 4 DB Warning] DB insert deferred (${err.message}). Results stored in memory.`);
+      }
     }
   }
 

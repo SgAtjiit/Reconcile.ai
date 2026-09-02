@@ -37,7 +37,7 @@ describe("End-to-End Batch Reconciliation Pipeline & Rematch Simulator", () => {
     }
   }, 20000);
 
-  it("2. Run Matcher & Verify Summary", async () => {
+  it("2. Run Matcher & Verify Summary and Results Grid", async () => {
     if (!batchId) return;
 
     // Trigger 4-Pass Matching Pipeline with fast timeout for offline test runner
@@ -54,6 +54,14 @@ describe("End-to-End Batch Reconciliation Pipeline & Rematch Simulator", () => {
 
     expect(summaryRes.status).toBe(200);
     expect(summaryRes.body.success).toBe(true);
+    expect(summaryRes.body.data.summary?.exact?.count || summaryRes.body.data.exact?.count).toBeGreaterThan(0);
+
+    // Fetch Match Results Grid
+    const resultsRes = await request(app).get(`/api/batches/${batchId}/results`);
+
+    expect(resultsRes.status).toBe(200);
+    expect(resultsRes.body.success).toBe(true);
+    expect(resultsRes.body.data.results.length).toBeGreaterThan(0);
   }, 20000);
 
   it("3. Test What-If Rematch Simulator", async () => {

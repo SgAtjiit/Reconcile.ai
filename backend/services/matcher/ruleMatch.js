@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
 import { db } from "../../db/client.js";
 import { matchResults } from "../../db/schema.js";
+import { inMemoryBatchStore } from "../ingestService.js";
+import { isUuid } from "../../utils/isUuid.js";
 
 const DEFAULT_EPSILON = 0.50; // Floating point rounding tolerance (₹0.50)
 
@@ -40,6 +43,7 @@ export async function runRuleMatchPass(
       if (ledger) matchedLedgerIds.add(ledger.id);
 
       matchedResults.push({
+        id: randomUUID(),
         batchId,
         settlementId: st.id,
         ledgerId: ledger ? ledger.id : null,
@@ -64,6 +68,7 @@ export async function runRuleMatchPass(
         if (ledger) matchedLedgerIds.add(ledger.id);
 
         matchedResults.push({
+          id: randomUUID(),
           batchId,
           settlementId: st.id,
           ledgerId: ledger ? ledger.id : null,
@@ -78,10 +83,19 @@ export async function runRuleMatchPass(
   }
 
   if (matchedResults.length > 0) {
-    try {
-      await db.insert(matchResults).values(matchedResults);
-    } catch (err) {
-      // In offline unit tests, return in-memory matches
+    if (inMemoryBatchStore.has(batchId)) {
+      const stored = inMemoryBatchStore.get(batchId);
+      stored.matchResults = [...(stored.matchResults || []), ...matchedResults];
+    }
+    if (isUuid(batchId)) {
+      try {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < matchedResults.length; i += CHUNK_SIZE) {
+          await db.insert(matchResults).values(matchedResults.slice(i, i + CHUNK_SIZE));
+        }
+      } catch (err) {
+        console.warn(`[Pass 2 DB Warning] DB insert deferred (${err.message}). Results stored in memory.`);
+      }
     }
   }
 

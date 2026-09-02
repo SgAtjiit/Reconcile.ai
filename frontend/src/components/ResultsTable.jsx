@@ -169,25 +169,42 @@ export function ResultsTable({ data = [], isLoading, onRowClick }) {
       </div>
 
       {/* Pagination Controls */}
-      <div className="p-3 border-t border-slate-200 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
-        <span>
-          Showing Page <strong className="text-slate-800">{table.getState().pagination.pageIndex + 1}</strong> of{" "}
-          <strong className="text-slate-800">{table.getPageCount() || 1}</strong> ({filteredData.length} records)
-        </span>
+      <div className="p-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50 text-xs text-slate-500">
+        <div className="flex items-center gap-3">
+          <span>
+            Showing Page <strong className="text-slate-800">{table.getState().pagination.pageIndex + 1}</strong> of{" "}
+            <strong className="text-slate-800">{table.getPageCount() || 1}</strong> ({filteredData.length} {matchTypeFilter === "all" ? "total" : matchTypeFilter} match entries)
+          </span>
+          <div className="flex items-center gap-1.5 font-mono text-xs">
+            <span>Rows:</span>
+            <select
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="px-2 py-0.5 border border-slate-300 rounded-md bg-white text-slate-800 focus:outline-hidden"
+            >
+              {[15, 25, 50, 100, 200].map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="p-1 rounded border border-slate-300 disabled:opacity-40 cursor-pointer hover:bg-slate-100"
+            className="p-1.5 rounded-md border border-slate-300 disabled:opacity-40 cursor-pointer hover:bg-slate-100 transition-colors"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 text-slate-600" />
           </button>
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="p-1 rounded border border-slate-300 disabled:opacity-40 cursor-pointer hover:bg-slate-100"
+            className="p-1.5 rounded-md border border-slate-300 disabled:opacity-40 cursor-pointer hover:bg-slate-100 transition-colors"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4 text-slate-600" />
           </button>
         </div>
       </div>

@@ -13,7 +13,10 @@ export const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.message || error.message || "An unexpected network error occurred";
+    let message = error.response?.data?.message || error.message || "An unexpected network error occurred";
+    if (message.includes("JSON") || message.includes("Unexpected token") || message.includes("non-whitespace character")) {
+      message = "Server returned an invalid response payload format. Please re-run ingestion.";
+    }
     return Promise.reject(new Error(message));
   }
 );
